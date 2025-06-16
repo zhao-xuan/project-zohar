@@ -1,0 +1,89 @@
+# Core AI and Multi-Agent Framework
+camel-ai[all]==0.2.1
+openai>=1.0.0
+anthropic>=0.7.0
+
+# Local LLM Integration
+ollama>=0.1.0
+litellm>=1.0.0
+
+# Vector Database and Embeddings
+chromadb>=0.4.15
+sentence-transformers>=2.2.2
+faiss-cpu>=1.7.4
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Web Framework and API
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+flask>=2.3.0
+streamlit>=1.28.0
+gradio>=4.0.0
+websockets>=11.0.0
+
+# MCP (Model Context Protocol)
+mcp>=1.0.0
+httpx>=0.25.0
+aiohttp>=3.8.0
+
+# Email Integration
+imaplib2>=3.6
+smtplib2>=0.1.0
+google-api-python-client>=2.100.0
+google-auth-httplib2>=0.1.1
+google-auth-oauthlib>=1.1.0
+exchangelib>=5.0.0
+
+# Document Processing
+PyPDF2>=3.0.0
+python-docx>=0.8.11
+markdown>=3.5.0
+beautifulsoup4>=4.12.0
+python-magic>=0.4.27
+
+# Database and Storage
+sqlite3
+sqlalchemy>=2.0.0
+redis>=4.6.0
+
+# Terminal and CLI
+click>=8.1.0
+rich>=13.6.0
+prompt-toolkit>=3.0.39
+colorama>=0.4.6
+
+# Security and Authentication
+cryptography>=41.0.0
+pyjwt>=2.8.0
+passlib>=1.7.4
+python-dotenv>=1.0.0
+
+# Networking and Web Scraping
+requests>=2.31.0
+selenium>=4.15.0
+playwright>=1.40.0
+
+# Utilities
+pydantic>=2.4.0
+typer>=0.9.0
+python-multipart>=0.0.6
+jinja2>=3.1.0
+pyyaml>=6.0.1
+toml>=0.10.2
+
+# Development and Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+black>=23.9.0
+flake8>=6.1.0
+mypy>=1.6.0
+
+# Optional: Voice Integration (uncomment if needed)
+# speech-recognition>=3.10.0
+# pyttsx3>=2.90
+
+# Optional: Advanced ML (uncomment if needed)
+# torch>=2.0.0
+# transformers>=4.35.0
+# accelerate>=0.24.0 
