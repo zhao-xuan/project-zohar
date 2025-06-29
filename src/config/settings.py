@@ -1,9 +1,10 @@
 """
-Configuration settings for the Personal Multi-Agent Chatbot System
+Configuration settings for the Personal Chatbot System
 """
 import os
 from typing import List, Optional
-from pydantic import BaseSettings, Field
+from pydantic_settings import BaseSettings
+from pydantic import Field
 from pathlib import Path
 
 
@@ -12,15 +13,21 @@ class DatabaseConfig(BaseSettings):
     vector_db_path: str = Field(default="./data/processed/vector_db", env="VECTOR_DB_PATH")
     sqlite_db_path: str = Field(default="./data/processed/chatbot.db", env="SQLITE_DB_PATH")
     redis_url: Optional[str] = Field(default=None, env="REDIS_URL")
+    
+    class Config:
+        extra = "ignore"
 
 
 class LLMConfig(BaseSettings):
     """LLM configuration settings"""
-    model_name: str = Field(default="deepseek", env="LLM_MODEL_NAME")
+    model_name: str = Field(default="deepseek-r1:70b", env="LLM_MODEL_NAME")
     ollama_host: str = Field(default="http://localhost:11434", env="OLLAMA_HOST")
     max_tokens: int = Field(default=4096, env="LLM_MAX_TOKENS")
     temperature: float = Field(default=0.7, env="LLM_TEMPERATURE")
     embedding_model: str = Field(default="all-MiniLM-L6-v2", env="EMBEDDING_MODEL")
+    
+    class Config:
+        extra = "ignore"
 
 
 class EmailConfig(BaseSettings):
@@ -38,6 +45,9 @@ class EmailConfig(BaseSettings):
     qq_app_password: Optional[str] = Field(default=None, env="QQ_APP_PASSWORD")
     qq_imap_server: str = Field(default="imap.qq.com", env="QQ_IMAP_SERVER")
     qq_smtp_server: str = Field(default="smtp.qq.com", env="QQ_SMTP_SERVER")
+    
+    class Config:
+        extra = "ignore"
 
 
 class MCPConfig(BaseSettings):
@@ -46,15 +56,21 @@ class MCPConfig(BaseSettings):
     browser_mcp_port: int = Field(default=8081, env="BROWSER_MCP_PORT")
     system_mcp_port: int = Field(default=8082, env="SYSTEM_MCP_PORT")
     mcp_timeout: int = Field(default=30, env="MCP_TIMEOUT")
+    
+    class Config:
+        extra = "ignore"
 
 
 class WebUIConfig(BaseSettings):
     """Web UI configuration"""
     host: str = Field(default="127.0.0.1", env="WEB_HOST")
-    personal_bot_port: int = Field(default=5000, env="PERSONAL_BOT_PORT")
-    public_bot_port: int = Field(default=5001, env="PUBLIC_BOT_PORT")
+    personal_bot_port: int = Field(default=8000, env="PERSONAL_BOT_PORT")
+    public_bot_port: int = Field(default=8001, env="PUBLIC_BOT_PORT")
     secret_key: str = Field(default="your-secret-key-change-this", env="SECRET_KEY")
     cors_origins: List[str] = Field(default=["http://localhost:3000"], env="CORS_ORIGINS")
+    
+    class Config:
+        extra = "ignore"
 
 
 class SecurityConfig(BaseSettings):
@@ -66,6 +82,9 @@ class SecurityConfig(BaseSettings):
     )
     rate_limit_per_minute: int = Field(default=60, env="RATE_LIMIT_PER_MINUTE")
     enable_public_bot: bool = Field(default=True, env="ENABLE_PUBLIC_BOT")
+    
+    class Config:
+        extra = "ignore"
 
 
 class PersonaConfig(BaseSettings):
@@ -82,12 +101,15 @@ class PersonaConfig(BaseSettings):
         default="./data/public/public_bio.txt",
         env="PUBLIC_BIO_PATH"
     )
+    
+    class Config:
+        extra = "ignore"
 
 
 class Settings(BaseSettings):
     """Main application settings"""
     # App metadata
-    app_name: str = "Personal Multi-Agent Chatbot System"
+    app_name: str = "Personal Chatbot System"
     app_version: str = "1.0.0"
     debug: bool = Field(default=False, env="DEBUG")
     
@@ -114,6 +136,7 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
+        extra = "ignore"  # Ignore extra environment variables
 
     def create_directories(self):
         """Create necessary directories if they don't exist"""

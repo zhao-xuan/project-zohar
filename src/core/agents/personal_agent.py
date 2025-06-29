@@ -8,7 +8,7 @@ from camel.types import TaskType, RoleType
 
 from src.config.settings import settings
 from src.rag.retrieval.retriever import PersonalDataRetriever
-from src.tools.mcp_servers.client import MCPClient
+from src.tools.mcp_servers.client import ToolClient
 from src.core.memory.conversation_memory import ConversationMemory
 
 
@@ -25,14 +25,11 @@ class PersonalAgent:
     
     def __init__(self):
         self.retriever = PersonalDataRetriever()
-        self.mcp_client = MCPClient()
+        self.tool_client = ToolClient()
         self.memory = ConversationMemory("personal")
         self.persona_prompt = self._load_persona_prompt()
         
-        # Initialize CAMEL agents
-        self.user_agent = self._create_user_agent()
-        self.assistant_agent = self._create_assistant_agent()
-        self.task_specifier = self._create_task_specifier()
+        # Note: Using direct Ollama integration instead of CAMEL agents
     
     def _load_persona_prompt(self) -> str:
         """Load personal tone and style from configuration"""
@@ -72,74 +69,26 @@ You can help with emails, documents, web browsing, and system tasks.
 Always confirm before taking actions that could have consequences.
 """
     
-    def _create_user_agent(self) -> ChatAgent:
-        """Create the AI User agent for task planning"""
-        user_prompt = """
-You are an AI User agent responsible for planning and coordinating tasks.
-Your role is to:
-1. Analyze user requests and break them into actionable steps
-2. Coordinate with the Assistant agent to execute tasks
-3. Ensure all necessary information is gathered before proceeding
-4. Manage the overall flow of multi-step operations
-
-When you receive a user request, plan the approach and instruct the Assistant agent accordingly.
-"""
-        
-        return ChatAgent(
-            system_message=user_prompt,
-            model_type=settings.llm.model_name,
-            task_type=TaskType.AI_SOCIETY
-        )
-    
-    def _create_assistant_agent(self) -> ChatAgent:
-        """Create the AI Assistant agent for task execution"""
-        assistant_prompt = f"""
-{self.persona_prompt}
-
-You are an AI Assistant agent responsible for executing tasks.
-Your capabilities include:
-- Retrieving information from personal data using RAG
-- Using tools via MCP (email, browser, system commands)
-- Maintaining conversation context
-- Providing detailed responses in the user's style
-
-Available tools:
-- email: send_email, read_emails, search_emails
-- browser: browse_url, search_web
-- system: execute_command, list_files
-- rag: search_personal_data
-
-Always use tools when needed to provide accurate information or perform actions.
-"""
-        
-        return ChatAgent(
-            system_message=assistant_prompt,
-            model_type=settings.llm.model_name,
-            task_type=TaskType.AI_SOCIETY
-        )
-    
-    def _create_task_specifier(self) -> ChatAgent:
-        """Create the Task Specifier agent for refining requests"""
-        specifier_prompt = """
-You are a Task Specifier agent responsible for clarifying and refining user requests.
-Your role is to:
-1. Analyze vague or complex requests
-2. Break them down into specific, actionable tasks
-3. Identify what information or tools might be needed
-4. Ensure the request is well-defined before execution
-
-Provide clear, structured task specifications.
-"""
-        
-        return ChatAgent(
-            system_message=specifier_prompt,
-            model_type=settings.llm.model_name,
-            task_type=TaskType.AI_SOCIETY
-        )
+    # CAMEL agent methods commented out - using direct Ollama integration instead
+    # 
+    # def _create_user_agent(self) -> ChatAgent:
+    #     """Create the AI User agent for task planning"""
+    #     user_prompt = """..."""
+    #     return ChatAgent(system_message=user_prompt, ...)
+    # 
+    # def _create_assistant_agent(self) -> ChatAgent:
+    #     """Create the AI Assistant agent for task execution"""
+    #     assistant_prompt = f"""..."""
+    #     return ChatAgent(system_message=assistant_prompt, ...)
+    # 
+    # def _create_task_specifier(self) -> ChatAgent:
+    #     """Create the Task Specifier agent for refining requests"""
+    #     specifier_prompt = """..."""
+    #     return ChatAgent(system_message=specifier_prompt, ...)
     
     async def process_message(self, user_message: str, conversation_id: str = None) -> str:
         """
-        Process a user message through the multi-agent system
+        Process a user message using Ollama-powered intelligent system
         
         Args:
             user_message: The user's input message
@@ -149,23 +98,35 @@ Provide clear, structured task specifications.
             The agent's response
         """
         try:
+            from src.services.ollama_service import ollama_service
+            
+            # Check if Ollama is available
+            if not await ollama_service.is_available():
+                return "❌ Local AI service (Ollama) is not available. Please run 'make start-ollama' to start the service."
+            
             # Load conversation context
             context = await self.memory.get_context(conversation_id) if conversation_id else []
             
-            # Step 1: Task specification (if needed)
-            if self._needs_task_specification(user_message):
-                task_spec = await self._specify_task(user_message)
-                working_message = task_spec
-            else:
-                working_message = user_message
+            # Retrieve relevant personal data
+            relevant_data = await self.retriever.retrieve_relevant_data(user_message)
             
-            # Step 2: Retrieve relevant personal data
-            relevant_data = await self.retriever.retrieve_relevant_data(working_message)
+            # Check if we need tools
+            tool_results = ""
+            if self._requires_tools(user_message):
+                tool_results = await self._execute_tools(user_message)
             
-            # Step 3: Multi-agent coordination
-            response = await self._coordinate_agents(working_message, relevant_data, context)
+            # Create comprehensive prompt for Ollama
+            full_prompt = self._create_comprehensive_prompt(
+                user_message, context, relevant_data, tool_results
+            )
             
-            # Step 4: Save to memory
+            # Get response from Ollama with persona
+            response = await ollama_service.generate_response(
+                prompt=full_prompt,
+                system_prompt=self.persona_prompt
+            )
+            
+            # Save to memory
             if conversation_id:
                 await self.memory.add_exchange(conversation_id, user_message, response)
             
@@ -257,12 +218,54 @@ Plan the approach to handle this request and instruct the Assistant agent.
         return "\n".join(formatted)
     
     def _requires_tools(self, content: str) -> bool:
-        """Determine if the plan requires tool usage"""
+        """Determine if the request requires tool usage"""
         tool_indicators = [
-            "send email", "browse", "search web", "execute", 
-            "command", "file", "read", "write"
+            "send email", "email", "browse", "search web", "execute", 
+            "command", "file", "read", "write", "check", "find", "search"
         ]
         return any(indicator in content.lower() for indicator in tool_indicators)
+    
+    def _create_comprehensive_prompt(self, user_message: str, context: List[Dict], 
+                                   relevant_data: List[Dict], tool_results: str) -> str:
+        """Create a comprehensive prompt combining all available information"""
+        
+        # Format context
+        context_str = self._format_context(context)
+        
+        # Format retrieved data
+        data_str = self._format_retrieved_data(relevant_data)
+        
+        # Build comprehensive prompt
+        prompt_parts = [
+            f"User Request: {user_message}",
+            "",
+            "Previous Conversation Context:",
+            context_str,
+            "",
+            "Retrieved Personal Data:",
+            data_str,
+        ]
+        
+        if tool_results:
+            prompt_parts.extend([
+                "",
+                "Tool Execution Results:",
+                tool_results,
+            ])
+        
+        prompt_parts.extend([
+            "",
+            "Instructions:",
+            "- Use the retrieved personal data to provide accurate, contextualized responses",
+            "- Maintain my personal communication style and tone",
+            "- If tool results are available, incorporate them into your response",
+            "- Be helpful and proactive in offering assistance",
+            "- If you need to access specific data or perform actions, mention what you would do",
+            "",
+            "Please provide a helpful and personalized response:"
+        ])
+        
+        return "\n".join(prompt_parts)
     
     async def _execute_tools(self, plan_content: str) -> str:
         """Execute tools based on the plan"""
@@ -270,11 +273,11 @@ Plan the approach to handle this request and instruct the Assistant agent.
         # In practice, you'd parse the plan and execute specific tools
         try:
             if "send email" in plan_content.lower():
-                return await self.mcp_client.call_tool("email", "send_email", {})
+                return await self.tool_client.call_tool("email", "send_email", {})
             elif "browse" in plan_content.lower() or "search web" in plan_content.lower():
-                return await self.mcp_client.call_tool("browser", "browse_url", {})
+                return await self.tool_client.call_tool("browser", "browse_url", {})
             elif "execute" in plan_content.lower() or "command" in plan_content.lower():
-                return await self.mcp_client.call_tool("system", "execute_command", {})
+                return await self.tool_client.call_tool("system", "execute_command", {})
             else:
                 return "No specific tools executed"
         except Exception as e:

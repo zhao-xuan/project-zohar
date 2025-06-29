@@ -28,8 +28,7 @@ class PublicAgent:
         self.memory = ConversationMemory("public")
         self.persona_prompt = self._load_public_persona_prompt()
         
-        # Initialize simplified CAMEL agent for public use
-        self.assistant_agent = self._create_public_assistant_agent()
+        # Note: Using direct Ollama integration instead of CAMEL agents
     
     def _load_public_persona_prompt(self) -> str:
         """Load public persona information"""
@@ -107,37 +106,16 @@ Always be helpful, professional, and transparent about your limitations.
         
         return ". ".join(style_elements) + "."
     
-    def _create_public_assistant_agent(self) -> ChatAgent:
-        """Create the public assistant agent with limited capabilities"""
-        assistant_prompt = f"""
-{self.persona_prompt}
-
-You are a public-facing AI assistant with the following specific capabilities:
-- Answer questions using only publicly available information
-- Search the web for relevant information when needed
-- Provide general assistance and guidance
-- Maintain helpful and professional communication
-
-TOOL USAGE:
-- web_search: Search for publicly available information online
-- NEVER use: email tools, file access, system commands, or private data access
-
-RESPONSE GUIDELINES:
-- Be helpful while staying within public information boundaries
-- If asked about private matters, respond: "I can only access publicly available information. For personal matters, you might want to contact [user] directly."
-- Always be transparent about your limitations
-- Maintain the user's communication style in public interactions
-"""
-        
-        return ChatAgent(
-            system_message=assistant_prompt,
-            model_type=settings.llm.model_name,
-            task_type=TaskType.AI_SOCIETY
-        )
+    # CAMEL agent method commented out - using direct Ollama integration instead
+    # 
+    # def _create_public_assistant_agent(self) -> ChatAgent:
+    #     """Create the public assistant agent with limited capabilities"""
+    #     assistant_prompt = f"""..."""
+    #     return ChatAgent(system_message=assistant_prompt, ...)
     
     async def process_message(self, user_message: str, conversation_id: str = None) -> str:
         """
-        Process a user message with restricted public access
+        Process a user message with restricted public access using Ollama
         
         Args:
             user_message: The user's input message
@@ -147,6 +125,12 @@ RESPONSE GUIDELINES:
             The agent's response
         """
         try:
+            from src.services.ollama_service import ollama_service
+            
+            # Check if Ollama is available
+            if not await ollama_service.is_available():
+                return "❌ Local AI service is not available. Please contact the administrator."
+            
             # Check for restricted content requests
             if self._is_restricted_request(user_message):
                 return self._get_restriction_response()
@@ -157,8 +141,21 @@ RESPONSE GUIDELINES:
             # Retrieve public data only
             relevant_data = await self.retriever.retrieve_public_data(user_message)
             
-            # Process with public assistant
-            response = await self._process_public_request(user_message, relevant_data, context)
+            # Check if web search would be helpful
+            web_results = ""
+            if self._needs_web_search(user_message):
+                web_results = await self._perform_web_search(user_message)
+            
+            # Create comprehensive prompt for public response
+            full_prompt = self._create_public_prompt(
+                user_message, context, relevant_data, web_results
+            )
+            
+            # Get response from Ollama with public restrictions
+            response = await ollama_service.generate_response(
+                prompt=full_prompt,
+                system_prompt=self.persona_prompt
+            )
             
             # Save to memory (limited retention)
             if conversation_id:
@@ -189,40 +186,7 @@ For personal matters or private information, please contact the user directly. I
 Is there something else I can help you with using publicly available information?
 """
     
-    async def _process_public_request(self, message: str, relevant_data: List[Dict], context: List[Dict]) -> str:
-        """Process request using only public data and capabilities"""
-        # Format context and data for the agent
-        context_str = self._format_context(context)
-        data_str = self._format_public_data(relevant_data)
-        
-        # Check if web search might be helpful
-        needs_web_search = self._needs_web_search(message)
-        web_results = ""
-        
-        if needs_web_search:
-            web_results = await self._perform_web_search(message)
-        
-        # Create comprehensive prompt for the assistant
-        full_prompt = f"""
-User request: {message}
-
-Previous context: {context_str}
-
-Available public information: {data_str}
-
-Web search results: {web_results}
-
-Please provide a helpful response using only the publicly available information above.
-Remember to maintain the user's communication style while staying within public information boundaries.
-"""
-        
-        assistant_message = BaseMessage.make_user_message(
-            role_name="User",
-            content=full_prompt
-        )
-        
-        response = await self.assistant_agent.step(assistant_message)
-        return response.msg.content
+    # Method removed - now using direct Ollama integration in process_message
     
     def _format_context(self, context: List[Dict]) -> str:
         """Format conversation context (limited for public use)"""
@@ -266,4 +230,46 @@ Remember to maintain the user's communication style while staying within public 
             # For now, return a placeholder
             return f"Web search results for: {query} (Implementation needed)"
         except Exception as e:
-            return "Web search unavailable at the moment" 
+            return "Web search unavailable at the moment"
+    
+    def _create_public_prompt(self, user_message: str, context: List[Dict], 
+                            relevant_data: List[Dict], web_results: str) -> str:
+        """Create a comprehensive prompt for public responses"""
+        
+        # Format context (limited)
+        context_str = self._format_context(context)
+        
+        # Format public data
+        data_str = self._format_public_data(relevant_data)
+        
+        # Build comprehensive prompt
+        prompt_parts = [
+            f"User Request: {user_message}",
+            "",
+            "Previous Conversation Context (Limited):",
+            context_str,
+            "",
+            "Available Public Information:",
+            data_str,
+        ]
+        
+        if web_results:
+            prompt_parts.extend([
+                "",
+                "Web Search Results:",
+                web_results,
+            ])
+        
+        prompt_parts.extend([
+            "",
+            "Instructions:",
+            "- Only use publicly available information in your response",
+            "- Maintain a professional and helpful tone",
+            "- If asked about private information, politely explain limitations",
+            "- Be transparent about what you can and cannot access",
+            "- Provide helpful guidance within public information boundaries",
+            "",
+            "Please provide a helpful public response:"
+        ])
+        
+        return "\n".join(prompt_parts) 

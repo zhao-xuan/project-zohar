@@ -1,6 +1,6 @@
-# Personal Multi-Agent Chatbot System
+# Personal Chatbot System
 
-A sophisticated AI chatbot system that creates two specialized assistants: a **Personal Bot** with full access to your private data and tools, and a **Public Bot** for general interactions. Both bots use multi-agent architecture, local LLM hosting, and Retrieval-Augmented Generation (RAG) to provide personalized responses in your unique communication style.
+A sophisticated AI chatbot system that creates two specialized assistants: a **Personal Bot** with full access to your private data and tools, and a **Public Bot** for general interactions. Both bots use local LLM hosting and Retrieval-Augmented Generation (RAG) to provide personalized responses in your unique communication style.
 
 ## 🎯 Project Overview
 
@@ -10,7 +10,7 @@ This system enables you to:
 - **Public Bot**: Provide a restricted version for general use that only knows basic public information about you and cannot access sensitive data or dangerous actions
 - **Tone Mimicking**: Both bots respond in your personal communication style based on your chat history and examples
 - **Local Privacy**: Everything runs on your Mac Studio, ensuring complete data privacy and control
-- **Multi-Agent Architecture**: Uses CAMEL framework for sophisticated task planning and execution
+- **Intelligent Processing**: Uses advanced file processing and retrieval for sophisticated responses
 - **Tool Integration**: Seamless integration with email, web browsing, and system commands via MCP (Model Context Protocol)
 
 ## 🏗️ System Architecture
@@ -27,11 +27,11 @@ This system enables you to:
    - Semantic search across emails, documents, and files
    - Real-time information retrieval during conversations
 
-3. **Multi-Agent Coordination (CAMEL Framework)**
-   - **Task Planner Agent**: Analyzes requests and plans execution
-   - **Assistant Agent**: Executes tasks and generates responses
-   - **Task Specifier Agent**: Refines complex or vague requests
-   - **Tool Executor**: Handles external tool integration
+3. **Advanced File Processing (CAMEL Framework)**
+   - **Multimodal Processing**: Handles text, images, audio, and documents
+   - **Dynamic Schema Generation**: Auto-creates optimized vector database schemas
+   - **Intelligent Chunking**: Smart content segmentation for better retrieval
+   - **Specialized Chat Parsing**: Extracts structured data from chat logs
 
 4. **Model Context Protocol (MCP) Integration**
    - Email tools (Gmail, Outlook, QQ Mail)
@@ -238,16 +238,15 @@ project-zohar/
 └── examples/                  # Usage examples
 ```
 
-## 🔄 Multi-Agent Flow
+## 🔄 Processing Flow
 
 1. **User Input**: Message received via web or terminal interface
-2. **Task Analysis**: Task Specifier Agent analyzes and refines the request
-3. **Planning**: Task Planner Agent creates execution strategy
-4. **Data Retrieval**: RAG system searches for relevant personal data
-5. **Tool Coordination**: MCP client prepares necessary tools
-6. **Execution**: Assistant Agent executes the plan using retrieved data and tools
-7. **Response Generation**: Final response generated in user's communication style
-8. **Memory Update**: Conversation context saved for future reference
+2. **Intent Analysis**: System analyzes and understands the request
+3. **Data Retrieval**: RAG system searches for relevant personal data using vector similarity
+4. **Tool Coordination**: MCP client prepares necessary tools and services
+5. **Response Processing**: System processes data and generates appropriate response
+6. **Response Generation**: Final response generated in user's communication style
+7. **Memory Update**: Conversation context saved for future reference
 
 ## 🧪 Testing
 

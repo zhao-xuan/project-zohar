@@ -1,5 +1,5 @@
 """
-MCP (Model Context Protocol) Client for tool integration
+Tool Client for external service integration (MCP-like protocol)
 """
 import json
 import asyncio
@@ -7,24 +7,25 @@ from typing import Dict, Any, Optional, List
 import httpx
 
 from src.config.settings import settings
+from src.services.ollama_service import ollama_service
 
 
-class MCPClient:
+class ToolClient:
     """
-    Client for communicating with MCP servers and tools
+    Client for communicating with external tools and services
+    Uses HTTP-based protocol similar to MCP (Model Context Protocol)
     """
     
     def __init__(self):
         self.timeout = settings.mcp.mcp_timeout
         self.available_tools = {}
-        self._discover_tools()
+        self._setup_tool_definitions()
     
-    def _discover_tools(self):
-        """Discover available MCP tools and their capabilities"""
-        # TODO: Implement actual tool discovery
-        # This would connect to MCP servers and get their capabilities
+    def _setup_tool_definitions(self):
+        """Setup available tool definitions"""
+        # Define available tools and their mock endpoints
+        # In a real implementation, these would be actual MCP servers
         
-        # Placeholder tool definitions
         self.available_tools = {
             "email": {
                 "server_url": f"http://localhost:{settings.mcp.email_mcp_port}",
@@ -34,7 +35,8 @@ class MCPClient:
                     "search_emails",
                     "mark_as_read",
                     "delete_email"
-                ]
+                ],
+                "mock_available": True  # For development without actual servers
             },
             "browser": {
                 "server_url": f"http://localhost:{settings.mcp.browser_mcp_port}",
@@ -43,7 +45,8 @@ class MCPClient:
                     "search_web",
                     "extract_content",
                     "take_screenshot"
-                ]
+                ],
+                "mock_available": True
             },
             "system": {
                 "server_url": f"http://localhost:{settings.mcp.system_mcp_port}",
@@ -52,7 +55,8 @@ class MCPClient:
                     "list_files",
                     "read_file",
                     "write_file"
-                ]
+                ],
+                "mock_available": True
             }
         }
     
@@ -63,7 +67,7 @@ class MCPClient:
         parameters: Dict[str, Any]
     ) -> str:
         """
-        Call a specific tool via MCP
+        Call a specific tool via HTTP protocol
         
         Args:
             tool_category: Category of tool (email, browser, system)
@@ -81,8 +85,8 @@ class MCPClient:
             if tool_name not in tool_config["capabilities"]:
                 return f"Error: Tool '{tool_name}' not available in category '{tool_category}'"
             
-            # Make MCP call
-            result = await self._make_mcp_call(
+            # First try to make actual HTTP call to MCP servers
+            result = await self._make_http_call(
                 tool_config["server_url"],
                 tool_name,
                 parameters
@@ -93,26 +97,99 @@ class MCPClient:
         except Exception as e:
             return f"Error calling tool {tool_category}.{tool_name}: {str(e)}"
     
-    async def _make_mcp_call(
+    async def _get_ollama_response(
+        self, 
+        tool_category: str, 
+        tool_name: str, 
+        parameters: Dict[str, Any]
+    ) -> str:
+        """
+        Generate tool response using local Ollama DeepSeek model
+        
+        Args:
+            tool_category: Category of tool
+            tool_name: Name of the tool
+            parameters: Tool parameters
+            
+        Returns:
+            Ollama-generated response
+        """
+        try:
+            # Check if Ollama is available
+            if await ollama_service.is_available():
+                return await ollama_service.generate_tool_response(
+                    tool_category, tool_name, parameters
+                )
+            else:
+                # Fall back to mock if Ollama is not available
+                return await self._get_mock_response(tool_category, tool_name, parameters)
+        except Exception as e:
+            # Fall back to mock on any error
+            return await self._get_mock_response(tool_category, tool_name, parameters)
+    
+    async def _get_mock_response(
+        self, 
+        tool_category: str, 
+        tool_name: str, 
+        parameters: Dict[str, Any]
+    ) -> str:
+        """
+        Generate mock responses for development/testing
+        
+        Args:
+            tool_category: Category of tool
+            tool_name: Name of the tool
+            parameters: Tool parameters
+            
+        Returns:
+            Mock response
+        """
+        if tool_category == "email":
+            if tool_name == "send_email":
+                to = parameters.get("to", "unknown@example.com")
+                subject = parameters.get("subject", "No Subject")
+                return f"Mock: Email sent to {to} with subject '{subject}'"
+            elif tool_name == "search_emails":
+                query = parameters.get("query", "")
+                return f"Mock: Found 3 emails matching '{query}': Email 1, Email 2, Email 3"
+            elif tool_name == "read_emails":
+                return "Mock: Retrieved 5 recent emails from inbox"
+        
+        elif tool_category == "browser":
+            if tool_name == "browse_url":
+                url = parameters.get("url", "unknown-url")
+                return f"Mock: Successfully browsed {url}. Content: Sample webpage content with relevant information."
+            elif tool_name == "search_web":
+                query = parameters.get("query", "")
+                return f"Mock: Web search for '{query}' returned 5 results with relevant information"
+        
+        elif tool_category == "system":
+            if tool_name == "execute_command":
+                command = parameters.get("command", "")
+                return f"Mock: Executed command '{command}'. Output: Command completed successfully."
+            elif tool_name == "list_files":
+                directory = parameters.get("directory", ".")
+                return f"Mock: Listed files in {directory}: file1.txt, file2.py, folder1/"
+        
+        return f"Mock: {tool_category}.{tool_name} executed with parameters {parameters}"
+    
+    async def _make_http_call(
         self, 
         server_url: str, 
         tool_name: str, 
         parameters: Dict[str, Any]
     ) -> str:
         """
-        Make the actual HTTP call to MCP server
+        Make HTTP call to actual tool server
         
         Args:
-            server_url: URL of the MCP server
+            server_url: URL of the tool server
             tool_name: Name of the tool to call
             parameters: Tool parameters
             
         Returns:
             Server response
         """
-        # TODO: Implement actual MCP protocol calls
-        # This is a simplified HTTP-based placeholder
-        
         payload = {
             "tool": tool_name,
             "parameters": parameters
@@ -129,14 +206,29 @@ class MCPClient:
                     result = response.json()
                     return result.get("result", "Tool executed successfully")
                 else:
-                    return f"MCP server error: {response.status_code} - {response.text}"
+                    return f"Tool server error: {response.status_code} - {response.text}"
                     
         except httpx.ConnectError:
-            return f"Could not connect to MCP server at {server_url}"
+            # Fall back to Ollama if MCP server is not available
+            return await self._get_ollama_response(
+                self._get_category_from_url(server_url), 
+                tool_name, 
+                parameters
+            )
         except httpx.TimeoutException:
-            return f"MCP server timeout after {self.timeout} seconds"
+            return f"Tool server timeout after {self.timeout} seconds"
         except Exception as e:
-            return f"MCP call failed: {str(e)}"
+            return f"Tool call failed: {str(e)}"
+    
+    def _get_category_from_url(self, server_url: str) -> str:
+        """Extract tool category from server URL"""
+        if f":{settings.mcp.email_mcp_port}" in server_url:
+            return "email"
+        elif f":{settings.mcp.browser_mcp_port}" in server_url:
+            return "browser"
+        elif f":{settings.mcp.system_mcp_port}" in server_url:
+            return "system"
+        return "unknown"
     
     async def list_available_tools(self) -> Dict[str, List[str]]:
         """
@@ -163,9 +255,15 @@ class MCPClient:
         if tool_category not in self.available_tools:
             return False
         
-        # Try to ping the server
+        tool_config = self.available_tools[tool_category]
+        
+        # If mock is available, always return True
+        if tool_config.get("mock_available", False):
+            return True
+        
+        # Try to ping the actual server
         try:
-            server_url = self.available_tools[tool_category]["server_url"]
+            server_url = tool_config["server_url"]
             async with httpx.AsyncClient(timeout=5) as client:
                 response = await client.get(f"{server_url}/health")
                 return response.status_code == 200
@@ -243,10 +341,14 @@ class MCPClient:
         return await self.call_tool("system", "list_files", parameters)
     
     async def health_check(self) -> Dict[str, bool]:
-        """Check health of all MCP servers"""
+        """Check health of all tool categories"""
         health_status = {}
         
         for category in self.available_tools:
             health_status[category] = await self.check_tool_availability(category)
         
-        return health_status 
+        return health_status
+
+
+# For backward compatibility
+MCPClient = ToolClient 

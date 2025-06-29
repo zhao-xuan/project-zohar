@@ -1,6 +1,6 @@
 # Quick Setup Guide
 
-Get your Personal Multi-Agent Chatbot System running in under 10 minutes!
+Get your Personal Chatbot System running in under 10 minutes!
 
 ## 🚀 One-Command Setup
 
