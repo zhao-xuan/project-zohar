@@ -22,7 +22,7 @@ class OllamaService:
         self.model = settings.llm.model_name
         self.max_tokens = settings.llm.max_tokens
         self.temperature = settings.llm.temperature
-        self.timeout = 60  # Longer timeout for LLM requests
+        self.timeout = 180  # Extended timeout for large models like DeepSeek R1 70B
     
     async def is_available(self) -> bool:
         """
@@ -86,6 +86,87 @@ class OllamaService:
             console.print(f"❌ Error pulling model: {e}")
             return False
     
+    def _clean_deepseek_response(self, response: str) -> str:
+        """
+        Clean DeepSeek R1 response by removing thinking process
+        
+        Args:
+            response: Raw response from DeepSeek R1
+            
+        Returns:
+            Cleaned response without thinking process
+        """
+        if not response:
+            return response
+            
+        import re
+        
+        # Strategy 1: Remove <think>...</think> blocks completely
+        think_pattern = r'<think>.*?</think>'
+        cleaned = re.sub(think_pattern, '', response, flags=re.DOTALL)
+        
+        # Strategy 2: If response still contains thinking-like content, try to find actual response
+        # Look for the actual response after the thinking process
+        lines = cleaned.split('\n')
+        
+        # Find where the actual response begins (usually after empty line following thinking)
+        response_start_idx = 0
+        thinking_ended = False
+        
+        for i, line in enumerate(lines):
+            line = line.strip()
+            
+            # Skip empty lines
+            if not line:
+                continue
+                
+            # Common thinking process indicators
+            thinking_indicators = [
+                'okay', 'alright', 'first', 'let me', 'i need to', 'i should', 
+                'the user', 'looking at', 'since', 'maybe', 'i want to', 
+                'i remember', 'putting it together', 'i draft'
+            ]
+            
+            # Check if this line looks like thinking
+            is_thinking = any(indicator in line.lower()[:50] for indicator in thinking_indicators)
+            
+            if not is_thinking and len(line) > 20:
+                # This looks like actual response content
+                response_start_idx = i
+                break
+        
+        # Extract the actual response part
+        if response_start_idx > 0:
+            actual_response_lines = lines[response_start_idx:]
+            cleaned = '\n'.join(actual_response_lines)
+        else:
+            # Try a different approach - look for direct speech patterns
+            response_patterns = [
+                r'(It looks like.*)',
+                r'(Based on.*)',
+                r'(I can see.*)',
+                r'(From your.*)',
+                r'(Your.*)',
+                r'(Here\'s.*)',
+                r'(According to.*)'
+            ]
+            
+            for pattern in response_patterns:
+                match = re.search(pattern, cleaned, re.DOTALL | re.IGNORECASE)
+                if match:
+                    cleaned = match.group(1)
+                    break
+        
+        # Final cleanup
+        cleaned = re.sub(r'\n\s*\n\s*\n', '\n\n', cleaned)  # Remove excessive newlines
+        cleaned = cleaned.strip()
+        
+        # If still no good response, provide fallback
+        if not cleaned or len(cleaned) < 20 or any(word in cleaned.lower()[:100] for word in ['think', 'draft', 'putting it together']):
+            return "I can help you search through your chat history and personal data. What specific information are you looking for?"
+        
+        return cleaned
+
     async def generate_response(
         self, 
         prompt: str, 
@@ -101,7 +182,7 @@ class OllamaService:
             context: Additional context
             
         Returns:
-            Generated response
+            Generated response (cleaned of thinking process)
         """
         try:
             # Build the full prompt
@@ -132,7 +213,13 @@ class OllamaService:
                 
                 if response.status_code == 200:
                     result = response.json()
-                    return result.get("response", "No response generated")
+                    raw_response = result.get("response", "No response generated")
+                    
+                    # Clean DeepSeek R1 thinking process if using DeepSeek R1 model
+                    if "deepseek-r1" in self.model.lower():
+                        return self._clean_deepseek_response(raw_response)
+                    else:
+                        return raw_response
                 else:
                     return f"Error: Ollama request failed with status {response.status_code}"
                     
@@ -231,7 +318,13 @@ Keep responses concise but informative. Always start your response with a brief 
                 
                 if response.status_code == 200:
                     result = response.json()
-                    return result.get("response", "No response generated")
+                    raw_response = result.get("response", "No response generated")
+                    
+                    # Clean DeepSeek R1 thinking process if using DeepSeek R1 model
+                    if "deepseek-r1" in self.model.lower():
+                        return self._clean_deepseek_response(raw_response)
+                    else:
+                        return raw_response
                 else:
                     return f"Error: Chat completion failed with status {response.status_code}"
                     

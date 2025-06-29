@@ -1,6 +1,6 @@
 # Personal Chatbot System Makefile
 
-.PHONY: help install setup start start-personal start-public start-web start-mcp test clean lint format check-health index-data
+.PHONY: help install setup start start-personal start-public start-web start-mcp test clean lint format check-health index-data parse-data inspect-db use-fast-model use-powerful-model
 
 # Default target
 help:
@@ -31,6 +31,8 @@ help:
 	@echo "  ollama-test    Test Ollama with sample prompt"
 	@echo "  ollama-models  List all available models"
 	@echo "  ollama-setup   Complete Ollama setup (start + pull)"
+	@echo "  use-fast-model Use DeepSeek 7B for faster responses"
+	@echo "  use-powerful-model Use DeepSeek 70B for best quality"
 	@echo ""
 	@echo "🔧 Development:"
 	@echo "  test           Run all tests"
@@ -38,6 +40,8 @@ help:
 	@echo "  format         Format code with black"
 	@echo "  check-health   Check system health"
 	@echo "  index-data     Index personal data for RAG"
+	@echo "  parse-data     Parse data from DATA_PATH into vector database"
+	@echo "  inspect-db     Inspect vector database schema and content"
 	@echo "  clean          Clean up temporary files"
 
 # Installation and setup
@@ -123,6 +127,28 @@ ollama-models:
 ollama-setup: start-ollama ollama-pull
 	@echo "✅ Ollama setup complete!"
 
+# Switch to faster 7B model for better performance
+use-fast-model:
+	@echo "🚀 Switching to DeepSeek R1 7B for faster responses..."
+	@if command -v ollama > /dev/null 2>&1; then \
+		ollama pull deepseek-r1:7b; \
+		echo "✅ DeepSeek R1 7B model ready"; \
+		echo "📝 Model switched in configuration"; \
+	else \
+		echo "❌ Ollama not found. Please install Ollama first."; \
+	fi
+
+# Switch to powerful 70B model for best quality
+use-powerful-model:
+	@echo "💪 Switching to DeepSeek R1 70B for best quality..."
+	@if command -v ollama > /dev/null 2>&1; then \
+		ollama pull deepseek-r1:70b; \
+		echo "✅ DeepSeek R1 70B model ready"; \
+		echo "⚠️ Note: This model requires more time and resources"; \
+	else \
+		echo "❌ Ollama not found. Please install Ollama first."; \
+	fi
+
 # Development
 test:
 	@echo "🧪 Running tests..."
@@ -146,6 +172,45 @@ check-health:
 index-data:
 	@echo "📚 Indexing personal data..."
 	python3 main.py index-data
+
+# Parse data from specified path into vector database
+parse-data:
+	@if [ -z "$(DATA_PATH)" ]; then \
+		echo "❌ Error: DATA_PATH parameter is required"; \
+		echo "📖 Usage: make parse-data DATA_PATH=/path/to/your/data"; \
+		echo "📖 Example: make parse-data DATA_PATH=/Users/tomzhao/Desktop/MyDocuments"; \
+		echo "📖 Optional: CHUNK_SIZE=1000 INCLUDE_CHAT=true"; \
+		exit 1; \
+	fi
+	@if [ ! -d "$(DATA_PATH)" ]; then \
+		echo "❌ Error: Directory $(DATA_PATH) does not exist"; \
+		exit 1; \
+	fi
+	@echo "🤖 Parsing data with intelligent parser..."
+	@echo "📁 Source: $(DATA_PATH)"
+	@echo "🎯 Target: Vector database at ./data/camel_vector_db/"
+	@echo "⚙️  Chunk size: $(or $(CHUNK_SIZE),1000)"
+	@echo "💬 Include chat parsing: $(or $(INCLUDE_CHAT),true)"
+	@echo ""
+	python3 main.py parse-personal-data \
+		--data-path "$(DATA_PATH)" \
+		--output "data/camel_processing_results.json" \
+		--chunk-size $(or $(CHUNK_SIZE),1000) \
+		$(if $(filter false,$(INCLUDE_CHAT)),--no-include-chat,--include-chat)
+	@echo ""
+	@echo "✅ Parsing complete!"
+	@echo "📊 Check data/camel_processing_results.json for detailed results"
+	@echo "🚀 Start the chatbot with: make start-web"
+
+# Inspect vector database schema and content
+inspect-db:
+	@echo "🔍 Inspecting vector database..."
+	@echo "📊 Analyzing schema, content, and metadata..."
+	@echo ""
+	python3 db_inspector.py
+	@echo ""
+	@echo "✅ Database inspection complete!"
+	@echo "📄 Check vector_db_summary.json for detailed analysis"
 
 clean:
 	@echo "🧹 Cleaning up..."

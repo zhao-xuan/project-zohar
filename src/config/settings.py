@@ -20,7 +20,7 @@ class DatabaseConfig(BaseSettings):
 
 class LLMConfig(BaseSettings):
     """LLM configuration settings"""
-    model_name: str = Field(default="deepseek-r1:70b", env="LLM_MODEL_NAME")
+    model_name: str = Field(default="deepseek-r1:7b", env="LLM_MODEL_NAME")  # Faster 7B model for better performance
     ollama_host: str = Field(default="http://localhost:11434", env="OLLAMA_HOST")
     max_tokens: int = Field(default=4096, env="LLM_MAX_TOKENS")
     temperature: float = Field(default=0.7, env="LLM_TEMPERATURE")

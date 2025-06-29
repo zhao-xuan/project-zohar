@@ -52,7 +52,8 @@ class ConversationMemory:
         conversation_id: str, 
         user_message: str, 
         assistant_response: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        search_results: Optional[List[Dict[str, Any]]] = None
     ):
         """
         Add a conversation exchange to memory
@@ -62,11 +63,27 @@ class ConversationMemory:
             user_message: The user's message
             assistant_response: The assistant's response
             metadata: Optional metadata about the exchange
+            search_results: Optional search results from vector database for reference
         """
         if metadata is None:
             metadata = {}
         
-        metadata_json = json.dumps(metadata)
+        # Store search results in metadata for future reference
+        if search_results:
+            # Clean search results to handle datetime serialization
+            cleaned_results = []
+            for result in search_results:
+                cleaned_result = result.copy()
+                # Convert datetime objects to strings
+                if 'parsed_date' in cleaned_result:
+                    if hasattr(cleaned_result['parsed_date'], 'strftime'):
+                        cleaned_result['parsed_date'] = cleaned_result['parsed_date'].strftime('%Y-%m-%d %H:%M:%S')
+                cleaned_results.append(cleaned_result)
+            
+            metadata["search_results"] = cleaned_results
+            metadata["has_numbered_results"] = True
+        
+        metadata_json = json.dumps(metadata, default=str)  # Handle datetime serialization
         
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
@@ -111,6 +128,36 @@ class ConversationMemory:
             
             # Reverse to get chronological order
             return list(reversed(results))
+    
+    async def get_most_recent_search_results(
+        self, 
+        conversation_id: str
+    ) -> Optional[List[Dict[str, Any]]]:
+        """
+        Get the most recent search results from the conversation for reference
+        
+        Args:
+            conversation_id: The conversation to search
+            
+        Returns:
+            Most recent search results if available
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("""
+                SELECT metadata
+                FROM conversations
+                WHERE conversation_id = ? AND bot_type = ?
+                ORDER BY timestamp DESC
+                LIMIT 10
+            """, (conversation_id, self.bot_type))
+            
+            for row in cursor.fetchall():
+                metadata = json.loads(row["metadata"])
+                if metadata.get("has_numbered_results") and metadata.get("search_results"):
+                    return metadata["search_results"]
+            
+            return None
     
     async def get_recent_conversations(
         self, 
