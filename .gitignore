@@ -2,11 +2,13 @@
 __pycache__/
 *.py[cod]
 *$py.class
+/agent_workspace
 
 # C extensions
 *.so
 data/
 config/
+logs/
 
 # Distribution / packaging
 .Python

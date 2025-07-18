@@ -1,268 +1,270 @@
-# Personal Chatbot System Makefile
+# Project Zohar Makefile
+# Essential targets for development and deployment
 
-.PHONY: help install setup start start-personal start-public start-web start-mcp test clean lint format check-health index-data parse-data inspect-db use-fast-model use-powerful-model
+.PHONY: help install dev-install clean setup start stop status test lint format ui-web ollama-setup logs
 
 # Default target
-help:
-	@echo "🤖 Personal Chatbot System"
+.DEFAULT_GOAL := help
+
+# Variables
+PYTHON := python3
+PIP := pip3
+VENV_DIR := .venv
+SRC_DIR := src
+TESTS_DIR := tests
+
+# Colors for output
+RED := \033[0;31m
+GREEN := \033[0;32m
+YELLOW := \033[1;33m
+BLUE := \033[0;34m
+NC := \033[0m # No Color
+
+# Help target
+help: ## Show this help message
+	@echo "$(BLUE)Project Zohar - Available Commands$(NC)"
 	@echo ""
-	@echo "🚀 Setup & Installation:"
-	@echo "  install        Install Python dependencies"
-	@echo "  setup          Run interactive setup wizard"
-	@echo "  quickstart     Complete setup and indexing"
+	@echo "$(GREEN)Installation & Setup:$(NC)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E "(install|setup|clean)" | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-15s$(NC) %s\n", $$1, $$2}'
 	@echo ""
-	@echo "🤖 Bot Services:"
-	@echo "  start          Start personal bot in terminal"
-	@echo "  start-public   Start public bot in terminal"
-	@echo "  start-web      Start web interface for both bots"
-	@echo "  start-mcp      Start MCP servers"
+	@echo "$(GREEN)Development:$(NC)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E "(test|lint|format)" | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-15s$(NC) %s\n", $$1, $$2}'
 	@echo ""
-	@echo "📧 MCP Email Server:"
-	@echo "  mcp-email-setup    Setup MCP email server with providers"
-	@echo "  mcp-email-test     Test MCP email server functionality"
-	@echo "  mcp-email-demo     Run email management demo"
-	@echo "  mcp-email-status   Check email provider authentication"
+	@echo "$(GREEN)Application:$(NC)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E "(start|stop|status|ui)" | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-15s$(NC) %s\n", $$1, $$2}'
 	@echo ""
-	@echo "🦙 Ollama (Local AI):"
-	@echo "  start-ollama   Start Ollama service"
-	@echo "  stop-ollama    Stop Ollama service"
-	@echo "  ollama-status  Check Ollama status and model availability"
-	@echo "  ollama-pull    Pull DeepSeek model"
-	@echo "  ollama-test    Test Ollama with sample prompt"
-	@echo "  ollama-models  List all available models"
-	@echo "  ollama-setup   Complete Ollama setup (start + pull)"
-	@echo "  use-fast-model Use DeepSeek 7B for faster responses"
-	@echo "  use-powerful-model Use DeepSeek 70B for best quality"
+	@echo "$(GREEN)Ollama & LLM:$(NC)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep "ollama" | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-15s$(NC) %s\n", $$1, $$2}'
 	@echo ""
-	@echo "🔧 Development:"
-	@echo "  test           Run all tests"
-	@echo "  lint           Run code linting"
-	@echo "  format         Format code with black"
-	@echo "  check-health   Check system health"
-	@echo "  index-data     Index personal data for RAG"
-	@echo "  parse-data     Parse data from DATA_PATH into vector database"
-	@echo "  inspect-db     Inspect vector database schema and content"
-	@echo "  clean          Clean up temporary files"
-
-# Installation and setup
-install:
-	@echo "📦 Installing dependencies..."
-	python3 -m pip install --upgrade pip
-	pip3 install -r requirements.txt
-
-setup: install
-	@echo "🔧 Running setup wizard..."
-	python3 main.py setup
-
-# Start services
-start:
-	@echo "🔐 Starting personal bot in terminal..."
-	python3 main.py terminal --type personal
-
-start-public:
-	@echo "🌐 Starting public bot in terminal..."
-	python3 main.py terminal --type public
-
-start-web:
-	@echo "🌐 Starting web interface..."
-	python3 main.py web --type both
-
-start-mcp:
-	@echo "🔗 Starting MCP servers..."
-	python3 main.py start-mcp-servers
-
-# MCP Email Server
-mcp-email-setup:
-	@echo "📧 Setting up MCP Email Server..."
-	python3 scripts/setup_mcp_email.py
-
-mcp-email-test:
-	@echo "🧪 Testing MCP Email Server..."
-	python3 -c "import asyncio; from src.services.mcp_email_server import main; asyncio.run(main())"
-
-mcp-email-demo:
-	@echo "🎬 Running MCP Email Demo..."
-	python3 examples/mcp_email_demo.py
-
-mcp-email-status:
-	@echo "📊 Checking email provider status..."
-	python3 -c "import asyncio; import sys; sys.path.insert(0, 'src'); from services.mcp_email_server import MCPEmailServer; server = MCPEmailServer(); print(asyncio.run(server.authenticate_all()))"
-
-# Ollama management
-start-ollama:
-	@echo "🦙 Starting Ollama service..."
-	@if ! command -v ollama > /dev/null 2>&1; then \
-		echo "❌ Ollama not found. Please install Ollama first."; \
-		echo "💡 Visit: https://ollama.ai/download"; \
-		exit 1; \
-	fi
-	@if ! pgrep -f ollama > /dev/null; then \
-		echo "🚀 Starting Ollama daemon..."; \
-		ollama serve & \
-		sleep 3; \
-	else \
-		echo "✅ Ollama is already running"; \
-	fi
-
-stop-ollama:
-	@echo "🛑 Stopping Ollama service..."
-	@pkill -f "ollama serve" || echo "⚠️  Ollama was not running"
-
-ollama-status:
-	@echo "📊 Checking Ollama status..."
-	python3 main.py ollama-status
-
-ollama-pull:
-	@echo "📥 Pulling DeepSeek model..."
-	python3 main.py ollama-pull
-
-ollama-test:
-	@echo "🧪 Testing Ollama with DeepSeek..."
-	python3 main.py ollama-test
-
-ollama-models:
-	@echo "📚 Listing available models..."
-	python3 main.py ollama-models
-
-ollama-setup: start-ollama ollama-pull
-	@echo "✅ Ollama setup complete!"
-
-# Switch to faster 7B model for better performance
-use-fast-model:
-	@echo "🚀 Switching to DeepSeek R1 7B for faster responses..."
-	@if command -v ollama > /dev/null 2>&1; then \
-		ollama pull deepseek-r1:7b; \
-		echo "✅ DeepSeek R1 7B model ready"; \
-		echo "📝 Model switched in configuration"; \
-	else \
-		echo "❌ Ollama not found. Please install Ollama first."; \
-	fi
-
-# Switch to powerful 70B model for best quality
-use-powerful-model:
-	@echo "💪 Switching to DeepSeek R1 70B for best quality..."
-	@if command -v ollama > /dev/null 2>&1; then \
-		ollama pull deepseek-r1:70b; \
-		echo "✅ DeepSeek R1 70B model ready"; \
-		echo "⚠️ Note: This model requires more time and resources"; \
-	else \
-		echo "❌ Ollama not found. Please install Ollama first."; \
-	fi
-
-# Development
-test:
-	@echo "🧪 Running tests..."
-	python3 -m pytest tests/ -v
-
-lint:
-	@echo "🔍 Running linting..."
-	flake8 src/ tests/ main.py
-	mypy src/ main.py
-
-format:
-	@echo "🎨 Formatting code..."
-	black src/ tests/ main.py
-	isort src/ tests/ main.py
-
-# Maintenance
-check-health:
-	@echo "📊 Checking system health..."
-	python3 main.py status
-
-index-data:
-	@echo "📚 Indexing personal data..."
-	python3 main.py index-data
-
-# Parse data from specified path into vector database
-parse-data:
-	@if [ -z "$(DATA_PATH)" ]; then \
-		echo "❌ Error: DATA_PATH parameter is required"; \
-		echo "📖 Usage: make parse-data DATA_PATH=/path/to/your/data"; \
-		echo "📖 Example: make parse-data DATA_PATH=/Users/tomzhao/Desktop/MyDocuments"; \
-		echo "📖 Optional: CHUNK_SIZE=1000 INCLUDE_CHAT=true"; \
-		exit 1; \
-	fi
-	@if [ ! -d "$(DATA_PATH)" ]; then \
-		echo "❌ Error: Directory $(DATA_PATH) does not exist"; \
-		exit 1; \
-	fi
-	@echo "🤖 Parsing data with intelligent parser..."
-	@echo "📁 Source: $(DATA_PATH)"
-	@echo "🎯 Target: Vector database at ./data/camel_vector_db/"
-	@echo "⚙️  Chunk size: $(or $(CHUNK_SIZE),1000)"
-	@echo "💬 Include chat parsing: $(or $(INCLUDE_CHAT),true)"
+	@echo "$(GREEN)Chat & Interaction:$(NC)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep "chat" | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-15s$(NC) %s\n", $$1, $$2}'
 	@echo ""
-	python3 main.py parse-personal-data \
-		--data-path "$(DATA_PATH)" \
-		--output "data/camel_processing_results.json" \
-		--chunk-size $(or $(CHUNK_SIZE),1000) \
-		$(if $(filter false,$(INCLUDE_CHAT)),--no-include-chat,--include-chat)
+	@echo "$(GREEN)Data Processing:$(NC)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep "digest" | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-15s$(NC) %s\n", $$1, $$2}'
 	@echo ""
-	@echo "✅ Parsing complete!"
-	@echo "📊 Check data/camel_processing_results.json for detailed results"
-	@echo "🚀 Start the chatbot with: make start-web"
+	@echo "$(GREEN)Demos & Examples:$(NC)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep "demo" | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-15s$(NC) %s\n", $$1, $$2}'
+	@echo ""
+	@echo "$(GREEN)Utilities:$(NC)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E "(logs|help)" | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-15s$(NC) %s\n", $$1, $$2}'
 
-# Inspect vector database schema and content
-inspect-db:
-	@echo "🔍 Inspecting vector database..."
-	@echo "📊 Analyzing schema, content, and metadata..."
-	@echo ""
-	python3 db_inspector.py
-	@echo ""
-	@echo "✅ Database inspection complete!"
-	@echo "📄 Check vector_db_summary.json for detailed analysis"
+# Installation targets
+install: ## Install Project Zohar
+	@echo "$(GREEN)Installing Project Zohar...$(NC)"
+	$(PIP) install -e .
+	@echo "$(GREEN)Installation complete!$(NC)"
 
-clean:
-	@echo "🧹 Cleaning up..."
+dev-install: ## Install for development with all dependencies
+	@echo "$(GREEN)Setting up development environment...$(NC)"
+	$(PYTHON) -m venv $(VENV_DIR)
+	$(VENV_DIR)/bin/pip install --upgrade pip
+	$(VENV_DIR)/bin/pip install -e ".[dev]"
+	@echo "$(GREEN)Development environment ready!$(NC)"
+	@echo "$(YELLOW)Activate with: source $(VENV_DIR)/bin/activate$(NC)"
+
+clean: ## Clean up build artifacts and caches
+	@echo "$(YELLOW)Cleaning up...$(NC)"
+	rm -rf build/
+	rm -rf dist/
+	rm -rf *.egg-info/
+	rm -rf $(VENV_DIR)/
+	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
-	find . -type d -name "__pycache__" -delete
-	find . -type d -name ".pytest_cache" -delete
-	find . -type f -name ".coverage" -delete
+	find . -type f -name "*.pyo" -delete
+	find . -type f -name "*.orig" -delete
+	find . -type f -name "*.rej" -delete
+	@echo "$(GREEN)Cleanup complete!$(NC)"
 
-# Development environment
-dev-setup: install
-	@echo "🛠️  Setting up development environment..."
-	pip install -e .
-	pre-commit install
+# Setup targets
+setup: ## Run interactive setup wizard (web-based)
+	@echo "$(GREEN)Starting Project Zohar web setup wizard...$(NC)"
+	$(PYTHON) -m zohar.cli setup wizard
 
-# Quick start for new users
-quickstart: setup index-data
-	@echo "🚀 Quick start completed!"
-	@echo "Run 'make start' to begin using your personal assistant"
+setup-cli: ## Run command-line setup wizard
+	@echo "$(GREEN)Starting Project Zohar CLI setup wizard...$(NC)"
+	$(PYTHON) -m zohar.cli setup wizard --no-web
 
-# Production deployment helpers
-ollama-install:
-	@echo "🤖 Installing Ollama..."
-	curl -fsSL https://ollama.ai/install.sh | sh
+setup-web: ## Run web-based setup wizard
+	@echo "$(GREEN)Starting Project Zohar web setup wizard...$(NC)"
+	$(PYTHON) -m zohar.cli setup wizard --web
+
+init: ## Initialize Project Zohar with default settings
+	@echo "$(GREEN)Initializing Project Zohar...$(NC)"
+	mkdir -p config data logs agent_workspace
+	cp -n config.env.example config.env 2>/dev/null || true
+	@echo "$(GREEN)Initialization complete!$(NC)"
+	@echo "$(YELLOW)Edit config.env to customize settings$(NC)"
+
+# Application targets
+start: ## Start Project Zohar services
+	@echo "$(GREEN)Starting Project Zohar...$(NC)"
+	$(PYTHON) -m zohar.cli start
+
+stop: ## Stop Project Zohar services
+	@echo "$(YELLOW)Stopping Project Zohar...$(NC)"
+	$(PYTHON) -m zohar.cli stop
+
+status: ## Check Project Zohar status
+	@echo "$(BLUE)Project Zohar Status:$(NC)"
+	$(PYTHON) -m zohar.cli status
+
+# UI targets
+ui-web: ## Launch web interface
+	@echo "$(GREEN)Starting web interface...$(NC)"
+	$(PYTHON) -m zohar.cli ui web
+
+ui-gradio: ## Launch Gradio interface
+	@echo "$(GREEN)Starting Gradio interface...$(NC)"
+	$(PYTHON) -m zohar.cli ui gradio
+
+# Development targets
+test: ## Run test suite
+	@echo "$(GREEN)Running tests...$(NC)"
+	$(PYTHON) -m pytest $(TESTS_DIR)/ -v
+
+test-quick: ## Run quick tests (unit tests only)
+	@echo "$(GREEN)Running quick tests...$(NC)"
+	$(PYTHON) -m pytest $(TESTS_DIR)/unit/ -v
+
+lint: ## Run code linting
+	@echo "$(GREEN)Running code linting...$(NC)"
+	$(PYTHON) -m flake8 $(SRC_DIR)/
+	$(PYTHON) -m mypy $(SRC_DIR)/
+
+format: ## Format code with black and isort
+	@echo "$(GREEN)Formatting code...$(NC)"
+	$(PYTHON) -m black $(SRC_DIR)/ $(TESTS_DIR)/
+	$(PYTHON) -m isort $(SRC_DIR)/ $(TESTS_DIR)/
+
+# Ollama targets
+ollama-setup: ## Setup Ollama and download default model
+	@echo "$(GREEN)Setting up Ollama...$(NC)"
+	@if ! command -v ollama &> /dev/null; then \
+		echo "$(RED)Ollama not found. Please install from https://ollama.ai$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(YELLOW)Downloading default model (llama3.2)...$(NC)"
+	ollama pull llama3.2
+	@echo "$(GREEN)Ollama setup complete!$(NC)"
+
+ollama-start: ## Start Ollama service
+	@echo "$(GREEN)Starting Ollama service...$(NC)"
+	@if ! pgrep -f ollama serve > /dev/null; then \
+		ollama serve & \
+		echo "$(GREEN)Ollama service started$(NC)"; \
+	else \
+		echo "$(YELLOW)Ollama service already running$(NC)"; \
+	fi
+
+ollama-stop: ## Stop Ollama service
+	@echo "$(YELLOW)Stopping Ollama service...$(NC)"
+	@pkill -f "ollama serve" || echo "$(YELLOW)Ollama service not running$(NC)"
+
+ollama-models: ## List available Ollama models
+	@echo "$(BLUE)Available Ollama models:$(NC)"
+	@ollama list || echo "$(RED)Ollama not running or not installed$(NC)"
+
+# Demo targets
+demo-tools: ## Demo CAMEL AI tools integration
+	@echo "$(GREEN)Running CAMEL AI Tools Demo...$(NC)"
+	$(PYTHON) examples/camel_tools_demo.py
+
+demo-basic: ## Demo basic CAMEL AI integration
+	@echo "$(GREEN)Running Basic CAMEL AI Demo...$(NC)"
+	$(PYTHON) examples/camel_ai_basic_example.py
+
+# Chat targets
+chat: ## Start interactive chat with AI
+	@echo "$(GREEN)Starting interactive chat session...$(NC)"
+	$(PYTHON) -m zohar.cli chat
+
+chat-public: ## Start chat with public agent
+	@echo "$(GREEN)Starting public agent chat...$(NC)"
+	$(PYTHON) -m zohar.cli chat --type public
+
+chat-help: ## Show chat command options
+	@echo "$(BLUE)Chat Command Options:$(NC)"
+	$(PYTHON) -m zohar.cli chat --help
+
+# Data Digestion targets
+digest-data: ## Start intelligent data digestion process
+	@echo "$(GREEN)Starting data digestion...$(NC)"
+	$(PYTHON) -c "import asyncio; from zohar.services.data_digestion import DigestionManager; dm = DigestionManager(); print('Session ID:', asyncio.run(dm.start_digestion('./data', max_files=50)))"
+
+digest-status: ## Check status of latest digestion session
+	@echo "$(GREEN)Checking digestion status...$(NC)"
+	$(PYTHON) -c "from zohar.services.data_digestion import DigestionManager; dm = DigestionManager(); sessions = dm.list_sessions(); print('Sessions:', sessions)"
+
+digest-demo: ## Run data digestion demo with sample data
+	@echo "$(GREEN)Running data digestion demo...$(NC)"
+	$(PYTHON) -c "import asyncio; from zohar.services.data_digestion import DigestionManager; dm = DigestionManager(); print('Demo session:', asyncio.run(dm.start_digestion('./examples', max_files=10)))"
+
+# Utility targets
+logs: ## Show application logs
+	@echo "$(BLUE)Recent logs:$(NC)"
+	@if [ -f logs/main.log ]; then \
+		tail -50 logs/main.log; \
+	else \
+		echo "$(YELLOW)No log files found$(NC)"; \
+	fi
+
+logs-tail: ## Follow application logs in real-time
+	@echo "$(BLUE)Following logs (Ctrl+C to stop):$(NC)"
+	@if [ -f logs/main.log ]; then \
+		tail -f logs/main.log; \
+	else \
+		echo "$(YELLOW)No log files found$(NC)"; \
+	fi
+
+# Quick setup target
+quickstart: dev-install init ollama-setup ## Complete quickstart setup
+	@echo "$(GREEN)Project Zohar quickstart complete!$(NC)"
+	@echo ""
+	@echo "$(BLUE)Next steps:$(NC)"
+	@echo "1. $(YELLOW)source $(VENV_DIR)/bin/activate$(NC) - Activate virtual environment"
+	@echo "2. $(YELLOW)make setup$(NC) - Run setup wizard (optional)"
+	@echo "3. $(YELLOW)make ui-web$(NC) - Start web interface"
+	@echo ""
+	@echo "$(GREEN)Visit http://localhost:8000 to get started!$(NC)"
+
+# Check prerequisites
+check: ## Check system prerequisites
+	@echo "$(BLUE)Checking system prerequisites...$(NC)"
+	@echo -n "Python 3.10+: "
+	@$(PYTHON) -c "import sys; assert sys.version_info >= (3, 10), 'Python 3.10+ required'; print('✓')" || echo "$(RED)✗ Python 3.10+ required$(NC)"
+	@echo -n "Pip: "
+	@command -v pip >/dev/null 2>&1 && echo "✓" || echo "$(RED)✗ pip not found$(NC)"
+	@echo -n "Git: "
+	@command -v git >/dev/null 2>&1 && echo "✓" || echo "$(YELLOW)⚠ git not found (optional)$(NC)"
+	@echo -n "Ollama: "
+	@command -v ollama >/dev/null 2>&1 && echo "✓" || echo "$(YELLOW)⚠ ollama not found (run 'make ollama-setup')$(NC)"
+
+# Docker targets (minimal)
+docker-build: ## Build Docker image
+	@echo "$(GREEN)Building Docker image...$(NC)"
+	docker build -t project-zohar .
+
+docker-run: ## Run Docker container
+	@echo "$(GREEN)Running Docker container...$(NC)"
+	docker run -p 8000:8000 -v $(PWD)/data:/app/data project-zohar
 
 # Backup and restore
-backup-data:
-	@echo "💾 Backing up data..."
-	tar -czf backup-$(shell date +%Y%m%d-%H%M%S).tar.gz data/ .env
+backup: ## Backup data and configuration
+	@echo "$(GREEN)Creating backup...$(NC)"
+	@mkdir -p backups
+	@tar -czf backups/zohar-backup-$(shell date +%Y%m%d-%H%M%S).tar.gz data/ config/ logs/ || true
+	@echo "$(GREEN)Backup created in backups/$(NC)"
 
-restore-data:
-	@echo "📁 Restore data from backup..."
-	@echo "Usage: make restore-data BACKUP=backup-YYYYMMDD-HHMMSS.tar.gz"
-	@if [ -z "$(BACKUP)" ]; then echo "Please specify BACKUP file"; exit 1; fi
-	tar -xzf $(BACKUP)
+# Development utilities
+dev: ui-web ## Start development mode (alias for ui-web)
 
-# Docker support (optional)
-docker-build:
-	@echo "🐳 Building Docker image..."
-	docker build -t personal-chatbot .
+test-watch: ## Run tests in watch mode
+	@echo "$(GREEN)Running tests in watch mode...$(NC)"
+	$(PYTHON) -m pytest-watch $(TESTS_DIR)/
 
-docker-run:
-	@echo "🐳 Running Docker container..."
-	docker run -p 5000:5000 -p 5001:5001 -v $(PWD)/data:/app/data personal-chatbot
-
-# Documentation
-docs:
-	@echo "📖 Building documentation..."
-	@echo "Documentation available in README.md and docs/ folder"
-
-# System requirements check
-check-requirements:
-	@echo "📋 Checking system requirements..."
-	@python -c "import sys; print(f'Python: {sys.version}')"
-	@which git > /dev/null && echo "✅ Git: installed" || echo "❌ Git: missing"
-	@which ollama > /dev/null && echo "✅ Ollama: installed" || echo "❌ Ollama: missing" 
+# Installation verification
+verify: ## Verify installation
+	@echo "$(BLUE)Verifying Project Zohar installation...$(NC)"
+	@$(PYTHON) -c "import zohar; print('✓ Zohar package imported successfully')" || echo "$(RED)✗ Zohar package import failed$(NC)"
+	@$(PYTHON) -c "from zohar.config.settings import get_settings; print('✓ Settings loaded successfully')" || echo "$(RED)✗ Settings loading failed$(NC)"
+	@echo "$(GREEN)Installation verification complete!$(NC)" 
